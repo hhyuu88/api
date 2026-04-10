@@ -42,10 +42,11 @@ DEFAULT_APP_ID = 4
 DEFAULT_APP_HASH = "014b35b6184100b085b0d0572f9b5103"
 
 # 代理配置（IPDeep）
-PROXY_USERNAME_PREFIX = "d1561533000"
-PROXY_PASSWORD = "Qqesi3rN"
-PROXY_SERVER = "gate.ipdeep.com"
-PROXY_PORT = 8082
+# 可通过环境变量覆盖：PROXY_USERNAME, PROXY_PASSWORD, PROXY_SERVER, PROXY_PORT
+PROXY_USERNAME_PREFIX = os.environ.get("PROXY_USERNAME", "d1561533000")
+PROXY_PASSWORD = os.environ.get("PROXY_PASSWORD", "Qqesi3rN")
+PROXY_SERVER = os.environ.get("PROXY_SERVER", "gate.ipdeep.com")
+PROXY_PORT = int(os.environ.get("PROXY_PORT", "8082"))
 
 # 路径配置
 BASE_DIR = Path(__file__).parent
@@ -434,7 +435,8 @@ def get_proxy_for_phone(new_phone, config):
     )
     logger.info(f"使用代理: {country_code.upper()} IP")
     logger.info(
-        f"代理地址: {username}-res-country-{country_code}-session-***:***@{server}:{port}"
+        f"代理地址: {proxy_conf.get('username', PROXY_USERNAME_PREFIX)}"
+        f"-res-country-{country_code}-session-***:***@{server}:{port}"
     )
 
     # Telethon HTTP 代理格式（通过 python-socks）
