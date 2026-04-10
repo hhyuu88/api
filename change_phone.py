@@ -260,6 +260,14 @@ def load_config():
     }
 
 
+def mask_url_key(url):
+    """
+    对 URL 中的 key= 参数进行掩码处理，避免日志中暴露 API 密钥
+    例如：...?key=abcdef1234 → ...?key=***
+    """
+    return re.sub(r'(key=)[^&\s]+', r'\1***', url)
+
+
 def extract_accounts_zip():
     """
     解压 input/accounts.zip 到 sessions/ 目录
@@ -270,16 +278,21 @@ def extract_accounts_zip():
         logger.error(f"❌ 找不到 accounts.zip: {zip_path}")
         sys.exit(1)
 
-    # 清空并重建 sessions 目录
-    if SESSIONS_DIR.exists():
-        shutil.rmtree(SESSIONS_DIR)
-    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    # 先解压到临时目录，验证成功后再替换正式目录
+    import tempfile
+    tmp_dir = Path(tempfile.mkdtemp(prefix="tg_sessions_"))
+    try:
+        logger.info(f"📦 解压 {zip_path} → {SESSIONS_DIR}")
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(tmp_dir)
+            extracted = zf.namelist()
 
-    logger.info(f"📦 解压 {zip_path} → {SESSIONS_DIR}")
-
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        zf.extractall(SESSIONS_DIR)
-        extracted = zf.namelist()
+        # 解压成功后，替换正式目录
+        if SESSIONS_DIR.exists():
+            shutil.rmtree(SESSIONS_DIR)
+        shutil.copytree(str(tmp_dir), str(SESSIONS_DIR))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"✅ 解压完成，共 {len(extracted)} 个文件")
     return extracted
@@ -419,9 +432,9 @@ def get_proxy_for_phone(new_phone, config):
     logger.info(
         f"新号码: {new_phone} → 国家: {country_code.upper()} {flag}"
     )
-    logger.info(f"使用代理: {country_code.upper()} IP (Session: {session_id})")
+    logger.info(f"使用代理: {country_code.upper()} IP")
     logger.info(
-        f"代理地址: {proxy_user}:***@{server}:{port}"
+        f"代理地址: {username}-res-country-{country_code}-session-***:***@{server}:{port}"
     )
 
     # Telethon HTTP 代理格式（通过 python-socks）
@@ -475,7 +488,8 @@ async def poll_sms_code(sms_api_url, config, phone_hint=""):
                     logger.warning(f"⚠️ 响应中无有效数字: {text}")
 
         except requests.RequestException as e:
-            logger.warning(f"⚠️ 接码平台请求失败 ({attempt}/{max_retry}): {e}")
+            # 日志中不暴露含 API 密钥的 URL
+            logger.warning(f"⚠️ 接码平台请求失败 ({attempt}/{max_retry}): {type(e).__name__}")
 
         # 等待下次轮询
         if attempt < max_retry:
@@ -564,7 +578,11 @@ async def change_phone_number(
                 raise Exception("需要两步验证密码，但 JSON 文件中未提供 twoFA 字段")
 
             logger.info("检测到两步验证，提交密码...")
-            await client.sign_in(password=two_fa_password)
+            sign_in_result = await client.sign_in(password=two_fa_password)
+            # 验证 2FA 登录是否成功
+            if not sign_in_result:
+                raise Exception("两步验证失败，密码可能不正确")
+            logger.info("✅ 两步验证通过")
             # 重新提交换绑
             await client.change_phone(
                 phone_number=new_phone,
@@ -572,7 +590,6 @@ async def change_phone_number(
                 phone_code=code,
             )
             two_fa_used = True
-            logger.info("✅ 两步验证通过")
 
         except PhoneCodeInvalidError:
             raise Exception(f"验证码 {code} 无效，请检查接码平台")
@@ -582,7 +599,7 @@ async def change_phone_number(
 
         # 验证换绑成功
         me_new = await client.get_me()
-        new_phone_clean = new_phone.lstrip("+")
+        new_phone_clean = new_phone.removeprefix("+")
 
         if me_new.phone == new_phone_clean:
             logger.success(f"🎉 换绑成功！新号码: {new_phone}")
@@ -753,7 +770,7 @@ async def main():
     # 结果记录
     successes = []        # 成功换绑的记录
     failures = []         # 失败的记录
-    success_files = []    # 成功账号的 session + json 文件路径
+    success_file_pairs = []    # 成功账号的 (session_path, json_path) 文件对
 
     # 获取等待时间配置
     intervals = config.get("intervals", {})
@@ -780,7 +797,7 @@ async def main():
             # 记录成功
             result["sms_api_url"] = sms_api_url
             successes.append(result)
-            success_files.append((session_path, json_path))
+            success_file_pairs.append((session_path, json_path))
 
             # 更新 JSON 文件（新号码、默认API等）
             update_account_json(
@@ -822,7 +839,7 @@ async def main():
     if successes:
         save_success_result(successes, success_result_file)
         save_success_accounts_json(successes, success_accounts_file)
-        pack_updated_accounts(success_files, updated_zip_file)
+        pack_updated_accounts(success_file_pairs, updated_zip_file)
     else:
         logger.warning("⚠️ 没有成功换绑的账号")
 
