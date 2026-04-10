@@ -28,6 +28,8 @@ from telethon.errors import (
     PhoneCodeInvalidError,
     SessionPasswordNeededError,
 )
+from telethon.tl.functions.account import ChangePhoneRequest, SendChangePhoneCodeRequest
+from telethon.tl.types import CodeSettings
 from tqdm import tqdm
 
 # 初始化 colorama（Windows 终端颜色支持）
@@ -367,12 +369,25 @@ def load_new_phones(phones_file=None):
             parts = line.split("|", 1)
             if len(parts) == 2:
                 phone, sms_api = parts[0].strip(), parts[1].strip()
+                phone = normalize_phone_number(phone)
                 phones.append((phone, sms_api))
             else:
                 logger.warning(f"⚠️ 格式错误，跳过: {line}")
 
     logger.info(f"✅ 读取到 {len(phones)} 个新号码")
     return phones
+
+
+def normalize_phone_number(phone):
+    """
+    规范化手机号：确保以 + 开头
+    如果没有 +，自动添加
+    """
+    phone = phone.strip()
+    if not phone.startswith('+'):
+        phone = '+' + phone
+        logger.info(f"自动添加 + 前缀: {phone}")
+    return phone
 
 
 # ============================================================
@@ -557,7 +572,10 @@ async def change_phone_number(
 
         # 发送验证码到新手机号
         logger.info(f"发送验证码到: {new_phone}")
-        sent_code = await client.send_change_phone_code(new_phone)
+        sent_code = await client(SendChangePhoneCodeRequest(
+            phone_number=new_phone,
+            settings=CodeSettings()
+        ))
         logger.info("✅ 验证码已发送")
 
         # 轮询接码平台获取验证码
@@ -568,11 +586,11 @@ async def change_phone_number(
         # 提交验证码完成换绑
         two_fa_used = False
         try:
-            await client.change_phone(
+            await client(ChangePhoneRequest(
                 phone_number=new_phone,
                 phone_code_hash=sent_code.phone_code_hash,
                 phone_code=code,
-            )
+            ))
         except SessionPasswordNeededError:
             # 需要两步验证密码
             two_fa_password = account_data.get("twoFA", "")
@@ -586,11 +604,11 @@ async def change_phone_number(
                 raise Exception("两步验证失败，密码可能不正确")
             logger.info("✅ 两步验证通过")
             # 重新提交换绑
-            await client.change_phone(
+            await client(ChangePhoneRequest(
                 phone_number=new_phone,
                 phone_code_hash=sent_code.phone_code_hash,
                 phone_code=code,
-            )
+            ))
             two_fa_used = True
 
         except PhoneCodeInvalidError:
