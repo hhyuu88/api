@@ -8,6 +8,7 @@ Telegram 账号批量换绑脚本
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -144,6 +145,216 @@ COUNTRY_FLAGS = {
     "br": "🇧🇷",
     "za": "🇿🇦",
     "ng": "🇳🇬",
+}
+
+# Android 设备池（真实设备，基于 2024 年市场份额）
+ANDROID_DEVICES_POOL = [
+    # Samsung（~20%）
+    {
+        "brand": "Samsung",
+        "device_model": "Samsung SM-S908B",
+        "model_name": "Galaxy S22 Ultra",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+    {
+        "brand": "Samsung",
+        "device_model": "Samsung SM-G998B",
+        "model_name": "Galaxy S21 Ultra",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.4",
+    },
+    {
+        "brand": "Samsung",
+        "device_model": "Samsung SM-A536B",
+        "model_name": "Galaxy A53 5G",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+    {
+        "brand": "Samsung",
+        "device_model": "Samsung SM-S911B",
+        "model_name": "Galaxy S23",
+        "system_version": "SDK 34",
+        "android_version": "14",
+        "app_version": "10.14.5",
+    },
+    # Xiaomi（~14%）
+    {
+        "brand": "Xiaomi",
+        "device_model": "Xiaomi 2201123G",
+        "model_name": "Xiaomi 12",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.4",
+    },
+    {
+        "brand": "Xiaomi",
+        "device_model": "Xiaomi 2211133G",
+        "model_name": "Xiaomi 12T Pro",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+    {
+        "brand": "Xiaomi",
+        "device_model": "Xiaomi 23013RK75C",
+        "model_name": "Redmi Note 12 Pro",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.4",
+    },
+    {
+        "brand": "Xiaomi",
+        "device_model": "Xiaomi 2304FPN6DG",
+        "model_name": "Xiaomi 13",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+    # Google Pixel（信任度高）
+    {
+        "brand": "Google",
+        "device_model": "Google Pixel 7 Pro",
+        "model_name": "Pixel 7 Pro",
+        "system_version": "SDK 34",
+        "android_version": "14",
+        "app_version": "10.14.5",
+    },
+    {
+        "brand": "Google",
+        "device_model": "Google Pixel 7",
+        "model_name": "Pixel 7",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+    {
+        "brand": "Google",
+        "device_model": "Google Pixel 6a",
+        "model_name": "Pixel 6a",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.4",
+    },
+    # OPPO（~10%）
+    {
+        "brand": "OPPO",
+        "device_model": "OPPO CPH2451",
+        "model_name": "Find X6",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+    {
+        "brand": "OPPO",
+        "device_model": "OPPO CPH2389",
+        "model_name": "Reno 8 Pro",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.4",
+    },
+    # Vivo（~9%）
+    {
+        "brand": "Vivo",
+        "device_model": "V2227A",
+        "model_name": "Vivo X90 Pro",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+    {
+        "brand": "Vivo",
+        "device_model": "V2199A",
+        "model_name": "Vivo X80",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.4",
+    },
+    # OnePlus
+    {
+        "brand": "OnePlus",
+        "device_model": "OnePlus CPH2449",
+        "model_name": "OnePlus 11",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+    {
+        "brand": "OnePlus",
+        "device_model": "OnePlus LE2123",
+        "model_name": "OnePlus 9 Pro",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.4",
+    },
+    # Realme
+    {
+        "brand": "Realme",
+        "device_model": "RMX3708",
+        "model_name": "Realme GT Neo 5",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+    {
+        "brand": "Realme",
+        "device_model": "RMX3663",
+        "model_name": "Realme 10 Pro+",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.4",
+    },
+    # Motorola
+    {
+        "brand": "Motorola",
+        "device_model": "motorola edge 30 pro",
+        "model_name": "Edge 30 Pro",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.4",
+    },
+    # Nothing Phone
+    {
+        "brand": "Nothing",
+        "device_model": "Nothing A063",
+        "model_name": "Nothing Phone (2)",
+        "system_version": "SDK 33",
+        "android_version": "13",
+        "app_version": "10.14.5",
+    },
+]
+
+# 国家语言映射表
+COUNTRY_LANGUAGE_MAP = {
+    "cn": {"lang_code": "zh-hans", "system_lang_code": "zh-hans", "lang_pack": "android"},
+    "hk": {"lang_code": "zh-hant", "system_lang_code": "zh-hant", "lang_pack": "android"},
+    "tw": {"lang_code": "zh-hant", "system_lang_code": "zh-hant", "lang_pack": "android"},
+    "us": {"lang_code": "en", "system_lang_code": "en-us", "lang_pack": "android"},
+    "gb": {"lang_code": "en", "system_lang_code": "en-gb", "lang_pack": "android"},
+    "in": {"lang_code": "en", "system_lang_code": "en-in", "lang_pack": "android"},
+    "bd": {"lang_code": "bn", "system_lang_code": "bn-bd", "lang_pack": "android"},
+    "pk": {"lang_code": "ur", "system_lang_code": "ur-pk", "lang_pack": "android"},
+    "ru": {"lang_code": "ru", "system_lang_code": "ru-ru", "lang_pack": "android"},
+    "br": {"lang_code": "pt-br", "system_lang_code": "pt-br", "lang_pack": "android"},
+    "de": {"lang_code": "de", "system_lang_code": "de-de", "lang_pack": "android"},
+    "fr": {"lang_code": "fr", "system_lang_code": "fr-fr", "lang_pack": "android"},
+    "es": {"lang_code": "es", "system_lang_code": "es-es", "lang_pack": "android"},
+    "it": {"lang_code": "it", "system_lang_code": "it-it", "lang_pack": "android"},
+    "jp": {"lang_code": "ja", "system_lang_code": "ja-jp", "lang_pack": "android"},
+    "kr": {"lang_code": "ko", "system_lang_code": "ko-kr", "lang_pack": "android"},
+    "vn": {"lang_code": "vi", "system_lang_code": "vi-vn", "lang_pack": "android"},
+    "th": {"lang_code": "th", "system_lang_code": "th-th", "lang_pack": "android"},
+    "id": {"lang_code": "id", "system_lang_code": "id-id", "lang_pack": "android"},
+    "my": {"lang_code": "ms", "system_lang_code": "ms-my", "lang_pack": "android"},
+    "ph": {"lang_code": "en", "system_lang_code": "en-ph", "lang_pack": "android"},
+    "sg": {"lang_code": "en", "system_lang_code": "en-sg", "lang_pack": "android"},
+    "tr": {"lang_code": "tr", "system_lang_code": "tr-tr", "lang_pack": "android"},
+    "ae": {"lang_code": "ar", "system_lang_code": "ar-ae", "lang_pack": "android"},
+    "sa": {"lang_code": "ar", "system_lang_code": "ar-sa", "lang_pack": "android"},
 }
 
 
@@ -390,6 +601,51 @@ def normalize_phone_number(phone):
     return phone
 
 
+def generate_random_android_device(account_phone=None):
+    """
+    随机生成真实的 Android 设备信息
+
+    参数:
+        account_phone: 账号手机号（用于生成稳定的随机种子）
+
+    返回:
+        dict: 包含 device_model, system_version, app_version 等
+    """
+    # 使用手机号的 hash 作为随机种子（同一账号总是生成相同设备）
+    if account_phone:
+        seed = int(hashlib.sha256(account_phone.encode()).hexdigest()[:8], 16)
+        random.seed(seed)
+
+    # 随机选择一个设备
+    device = random.choice(ANDROID_DEVICES_POOL)
+
+    # 恢复随机状态
+    if account_phone:
+        random.seed()
+
+    logger.info(
+        f"🎲 随机生成设备: {device['brand']} {device['model_name']} "
+        f"(Android {device['android_version']})"
+    )
+
+    return {
+        "device_model": device["device_model"],
+        "system_version": device["system_version"],
+        "app_version": device["app_version"],
+        "brand": device["brand"],
+        "model_name": device["model_name"],
+        "android_version": device["android_version"],
+    }
+
+
+def get_language_by_country(country_code):
+    """根据国家代码返回语言配置"""
+    return COUNTRY_LANGUAGE_MAP.get(
+        country_code,
+        {"lang_code": "en", "system_lang_code": "en-us", "lang_pack": "android"}
+    )
+
+
 # ============================================================
 # 代理模块
 # ============================================================
@@ -492,17 +748,17 @@ async def poll_sms_code(sms_api_url, config, phone_hint=""):
             logger.debug(f"← {text}")
 
             # 判断是否收到验证码
-            if text.lower() in ["no", "no sms", "nosms", ""]:
+            if not text or "no" in text.lower():
                 logger.info(f"← {text} (继续等待)")
             else:
                 # 提取纯数字验证码
                 digits = "".join(filter(str.isdigit, text))
-                if digits:
+                if digits and len(digits) >= 4:
                     logger.info(f"← {text}")
-                    logger.info(f"✅ 收到验证码: {digits}")
+                    logger.success(f"✅ 收到验证码: {digits}")
                     return digits
                 else:
-                    logger.warning(f"⚠️ 响应中无有效数字: {text}")
+                    logger.warning(f"⚠️ 响应格式异常: {text}")
 
         except requests.RequestException as e:
             # 日志中不暴露含 API 密钥的 URL
@@ -542,10 +798,24 @@ async def change_phone_number(
     # 确定 session 文件路径（去掉 .session 扩展名，Telethon 会自动加）
     session_name = str(session_path).replace(".session", "")
 
+    # 🎲 生成随机 Android 设备信息
+    old_phone = account_data.get("phone", "")
+    device_info = generate_random_android_device(account_phone=old_phone)
+
+    # 🌍 根据新号码的国家匹配语言
+    lang_config = get_language_by_country(country_code or "us")
+
     # 创建 Telethon 客户端
     client_kwargs = {
         "api_id": account_data["app_id"],
         "api_hash": account_data["app_hash"],
+        # ✅ 使用随机生成的 Android 设备信息
+        "device_model": device_info["device_model"],
+        "system_version": device_info["system_version"],
+        "app_version": device_info["app_version"],
+        # ✅ 使用匹配国家的语言配置
+        "lang_code": lang_config["lang_code"],
+        "system_lang_code": lang_config["system_lang_code"],
     }
     if proxy:
         client_kwargs["proxy"] = proxy
@@ -570,6 +840,12 @@ async def change_phone_number(
             f"当前账号: +{me.phone} ({me.first_name or ''} {me.last_name or ''})"
         )
 
+        # 🆕 显示设备和语言信息
+        logger.info(
+            f"📱 设备: {device_info['brand']} {device_info['model_name']} "
+            f"(Android {device_info['android_version']}, 语言: {lang_config['lang_code']})"
+        )
+
         # 发送验证码到新手机号
         logger.info(f"发送验证码到: {new_phone}")
         sent_code = await client(SendChangePhoneCodeRequest(
@@ -577,6 +853,11 @@ async def change_phone_number(
             settings=CodeSettings()
         ))
         logger.info("✅ 验证码已发送")
+
+        # 🆕 显示验证码类型
+        logger.debug(f"📋 验证码类型: {type(sent_code.type).__name__}")
+        if hasattr(sent_code, 'timeout'):
+            logger.debug(f"📋 超时时间: {sent_code.timeout} 秒")
 
         # 轮询接码平台获取验证码
         code = await poll_sms_code(sms_api_url, config, phone_hint=new_phone)
@@ -640,6 +921,8 @@ async def change_phone_number(
             "changed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "country": country_code or "unknown",
             "two_fa_used": two_fa_used,
+            "device_model": device_info["device_model"],
+            "device_brand": device_info["brand"],
         }
 
     except Exception as e:
