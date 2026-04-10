@@ -1,0 +1,53 @@
+# ============================================================
+# Telegram 批量换绑脚本 - Git 忽略规则
+# ============================================================
+
+# Session 文件（包含账号登录凭证，不能提交到版本库）
+*.session
+sessions/*
+!sessions/.gitkeep
+
+# 输入文件（包含账号信息和号码，不能提交到版本库）
+input/*
+!input/.gitkeep
+
+# 输出文件（结果文件，不需要提交到版本库）
+output/*
+!output/.gitkeep
+!output/logs/
+
+# Python 相关
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 虚拟环境
+venv/
+env/
+.venv/
+.env/
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# IDE 文件
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# 日志文件
+*.log
+
+# 临时文件
+*.tmp
+*.bak

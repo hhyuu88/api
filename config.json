@@ -1,0 +1,25 @@
+{
+  "proxy": {
+    "enabled": true,
+    "username": "d1561533000",
+    "password": "Qqesi3rN",
+    "server": "gate.ipdeep.com",
+    "port": 8082,
+    "type": "http",
+    "auto_match_country": true
+  },
+  "default_api": {
+    "app_id": 4,
+    "app_hash": "014b35b6184100b085b0d0572f9b5103"
+  },
+  "intervals": {
+    "between_accounts_min": 30,
+    "between_accounts_max": 60,
+    "sms_poll_interval": 5,
+    "max_sms_wait_time": 300
+  },
+  "sms": {
+    "max_retry": 60,
+    "retry_interval": 5
+  }
+}
